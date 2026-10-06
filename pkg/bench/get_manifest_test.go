@@ -19,7 +19,7 @@ import (
 )
 
 func TestGetManifestRejectsInvalidFixture(t *testing.T) {
-	for _, input := range []string{
+	for index, input := range []string{
 		`{"objects":[]}`,
 		`{"objects":[{"name":"a","size":1},{"name":"a","size":1}]}`,
 		`{"objects":[{"name":"","size":1}]}`,
@@ -31,7 +31,11 @@ func TestGetManifestRejectsInvalidFixture(t *testing.T) {
 		if err := os.WriteFile(p, []byte(input), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := loadGetObjects(p, 1); err == nil {
+		expected := 1
+		if index == 1 {
+			expected = 2
+		}
+		if _, err := loadGetObjects(p, expected); err == nil {
 			t.Fatalf("accepted invalid manifest %s", input)
 		}
 	}
@@ -52,6 +56,8 @@ func TestGetOnceConsumesEveryObjectWithoutListingOrReuse(t *testing.T) {
 				}
 				mu.Unlock()
 				w.Header().Set("Content-Length", fmt.Sprint(len(payload)))
+				w.Header().Set("Last-Modified", time.Unix(0, 0).UTC().Format(http.TimeFormat))
+				w.Header().Set("ETag", `"fixture-etag"`)
 				_, _ = w.Write(payload)
 			}))
 			defer server.Close()
