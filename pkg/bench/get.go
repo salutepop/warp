@@ -46,11 +46,23 @@ type Get struct {
 	RangeSize     int64
 	ListExisting  bool
 	ListFlat      bool
+	// Once reads each prepared object at most once, without wrapping the set.
+	Once bool
+	// ObjectsFile supplies an immutable object list without server-side listing.
+	ObjectsFile string
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Get) Prepare(ctx context.Context) error {
+	if g.ObjectsFile != "" {
+		objects, err := loadGetObjects(g.ObjectsFile, g.CreateObjects)
+		if err != nil {
+			return err
+		}
+		g.objects = objects
+		return nil
+	}
 	// prepare the bench by listing object from the bucket
 	if g.ListExisting {
 		objects, err := g.listExistingObjects(ctx, ListObjectsConfig{
@@ -240,6 +252,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 			}()
 
 			<-wait
+			nextObject := i
 			for {
 				select {
 				case <-done:
@@ -252,7 +265,17 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 				}
 
 				fbr := firstByteRecorder{}
-				obj := g.objects[rng.Intn(len(g.objects))]
+				objectIndex := 0
+				if g.Once {
+					if nextObject >= len(g.objects) {
+						return
+					}
+					objectIndex = nextObject
+					nextObject += g.Concurrency
+				} else {
+					objectIndex = rng.Intn(len(g.objects))
+				}
+				obj := g.objects[objectIndex]
 				client, cldone := g.Client()
 				op := Operation{
 					OpType:   http.MethodGet,
@@ -367,7 +390,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Get) Cleanup(ctx context.Context) {
-	if !g.ListExisting {
+	if !g.ListExisting && g.ObjectsFile == "" {
 		g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
 	}
 }

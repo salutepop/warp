@@ -25,6 +25,14 @@ import (
 )
 
 var getFlags = []cli.Flag{
+	cli.BoolFlag{
+		Name:  "once",
+		Usage: "Read each prepared object at most once; stop at exhaustion or duration, without wrapping",
+	},
+	cli.StringFlag{
+		Name:  "objects-file",
+		Usage: "Local JSON object manifest for --once, avoiding server-side listing before measurement",
+	},
 	cli.IntFlag{
 		Name:  "objects",
 		Value: 2500,
@@ -108,11 +116,19 @@ func mainGet(ctx *cli.Context) error {
 		ListExisting:  ctx.Bool("list-existing"),
 		ListFlat:      ctx.Bool("list-flat"),
 		ListPrefix:    ctx.String("prefix"),
+		Once:          ctx.Bool("once"),
+		ObjectsFile:   ctx.String("objects-file"),
 	}
 	return runBench(ctx, &b)
 }
 
 func checkGetSyntax(ctx *cli.Context) {
+	if ctx.Bool("once") && ctx.String("warp-client") != "" {
+		console.Fatal("--once currently supports one local generator only")
+	}
+	if ctx.String("objects-file") != "" && (!ctx.Bool("once") || ctx.Bool("list-existing") || ctx.Int("versions") != 1) {
+		console.Fatal("--objects-file requires --once, one version and no --list-existing")
+	}
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
