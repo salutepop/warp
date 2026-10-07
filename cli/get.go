@@ -27,7 +27,7 @@ import (
 var getFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "once",
-		Usage: "Read each prepared object at most once; stop at exhaustion or duration, without wrapping",
+		Usage: "Read each prepared object once with SDK retries disabled; stop at exhaustion or duration",
 	},
 	cli.StringFlag{
 		Name:  "objects-file",

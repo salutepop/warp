@@ -214,8 +214,13 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	} else if ctx.String("lookup") == "path" {
 		lookup = minio.BucketLookupPath
 	}
+	maxRetries := 0 // Retain the SDK default outside single-pass reads.
+	if ctx.Bool("once") {
+		maxRetries = 1 // One SDK attempt: retries could reuse warmed payload pages.
+	}
 	cl, err := minio.New(host, &minio.Options{
 		Creds:           creds,
+		MaxRetries:      maxRetries,
 		Secure:          ctx.Bool("tls") || ctx.Bool("ktls"),
 		Region:          ctx.String("region"),
 		BucketLookup:    lookup,
